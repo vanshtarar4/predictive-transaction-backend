@@ -1,9 +1,9 @@
-📊 Predictive Transaction Intelligence – Backend
+# 📊 Predictive Transaction Intelligence – Backend
 
 This repository contains the backend implementation for the Predictive Transaction Intelligence for BFSI system.
 It covers data collection, preprocessing, feature engineering, fraud detection model preparation, and REST API development.
 
-🚀 Milestone 1 Deliverables
+## 🚀 Milestone 1 Deliverables
 
 ✔ Setup project structure
 ✔ Load & clean raw dataset
@@ -28,19 +28,19 @@ project_root/
 └── README.md                 # Project overview
 
 
-# 1. Clone repository
+## 1. Clone repository
 git clone <your-repo-link>
 cd predictive-transaction-backend
 
-# 2. Create virtual environment
+## 2. Create virtual environment
 python -m venv .venv
-# Activate environment
-# Windows:
+## Activate environment
+## Windows:
 .venv\Scripts\activate
-# Linux/Mac:
+## Linux/Mac:
 source .venv/bin/activate
 
-# 3. Install dependencies
+## 3. Install dependencies
 pip install -r requirements.txt
 
 python src/preprocessing/cleaning_pipeline.py
