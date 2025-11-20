@@ -30,7 +30,7 @@ project_root/
 
 ## 1. Clone repository
 ```bash
-git clone <your-repo-link>
+git clone [<your-repo-link>](https://github.com/vanshtarar4/predictive-transaction-backend)
 cd predictive-transaction-backend
 ```
 ## 2. Create virtual environment
