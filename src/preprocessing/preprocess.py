@@ -93,8 +93,21 @@ def run_pipeline():
     df = clean_data(df)
     save_processed_data(df)
     train_test_split_data(df)
-
+    insert_data(df)
     print("\n🎯 Preprocessing Completed Successfully!\n")
+
+def insert_data(df):
+    """Insert cleaned data into database"""
+    from src.utils.db_connection import get_db_connection
+
+    # Drop original 'kyc_verified' since DB doesn't contain it
+    if 'kyc_verified' in df.columns:
+        df = df.drop(columns=['kyc_verified'])
+
+    conn = get_db_connection()
+    df.to_sql('transactions', conn, if_exists='append', index=False)
+    conn.close()
+    print("📥 Cleaned data inserted into DB.")
 
 
 if __name__ == "__main__":
