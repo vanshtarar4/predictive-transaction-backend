@@ -29,20 +29,29 @@ project_root/
 
 
 ## 1. Clone repository
+```bash
 git clone <your-repo-link>
 cd predictive-transaction-backend
-
+```
 ## 2. Create virtual environment
+```bash
 python -m venv .venv
+```
 ## Activate environment
 ## Windows:
+```bash
 .venv\Scripts\activate
+```
 ## Linux/Mac:
+```bash
 source .venv/bin/activate
+```
 
 ## 3. Install dependencies
+```bash
 pip install -r requirements.txt
 
 python src/preprocessing/cleaning_pipeline.py
 
 uvicorn src.api.main:app --reload
+```
