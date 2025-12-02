@@ -8,3 +8,8 @@ seaborn
 pytest
 python-dotenv
 sqlalchemy
+shap
+imbalanced-learn
+joblib
+requests
+httpx
