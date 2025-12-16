@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
-URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key={API_KEY}"
 
 def generate_explanation(transaction_data, risk_score, rules_triggered):
     """
@@ -37,7 +37,7 @@ def generate_explanation(transaction_data, risk_score, rules_triggered):
         }
         
         headers = {'Content-Type': 'application/json'}
-        response = requests.post(URL, headers=headers, json=payload, timeout=5)
+        response = requests.post(URL, headers=headers, json=payload, timeout=10)
         
         if response.status_code == 200:
             result = response.json()
@@ -48,7 +48,7 @@ def generate_explanation(transaction_data, risk_score, rules_triggered):
             except (KeyError, IndexError):
                 return "Explanation generation failed (Invalid response format)."
         else:
-            return f"Explanation generation failed (Status {response.status_code})."
+            return f"Explanation generation failed (Status {response.status_code}: {response.text})."
             
     except Exception as e:
         return f"Explanation generation failed (Error: {str(e)})."
