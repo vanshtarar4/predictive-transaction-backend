@@ -18,3 +18,4 @@ data/processed/*
 
 # Others
 *.log
+.env

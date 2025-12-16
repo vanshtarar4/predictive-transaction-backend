@@ -9,20 +9,27 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional
 
+# Internal imports
+from src.utils.rule_engine import RuleEngine
+from src.utils.llm_helper import generate_explanation
+
 # Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MODEL_PATH = os.path.join(BASE_DIR, 'models', 'fraud_model.pkl')
 METRICS_PATH = os.path.join(BASE_DIR, 'models', 'metrics.json')
 DB_PATH = os.path.join(BASE_DIR, 'data', 'processed', 'transactions.db')
 
-# Global model variable
+# Global variables
 model = None
+rule_engine = None
 
 def init_db():
-    """Initialize SQLite database and table."""
+    """Initialize SQLite database and tables."""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    
+    # 1. Model Predictions Table (Existing)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS model_predictions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,19 +41,38 @@ def init_db():
             created_at TEXT
         )
     ''')
+    
+    # 2. Fraud Alerts Table (New)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS fraud_alerts (
+            alert_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_id TEXT,
+            customer_id TEXT,
+            risk_score REAL,
+            reason TEXT,
+            created_at TEXT
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Load model and init DB
-    global model
+    global model, rule_engine
     try:
         model = joblib.load(MODEL_PATH)
         print(f"Model loaded from {MODEL_PATH}")
     except Exception as e:
         print(f"Error loading model: {e}")
     
+    try:
+        rule_engine = RuleEngine(DB_PATH)
+        print("Rule Engine initialized")
+    except Exception as e:
+        print(f"Error initializing Rule Engine: {e}")
+        
     init_db()
     print(f"Database initialized at {DB_PATH}")
     
@@ -70,6 +96,7 @@ class PredictionOutput(BaseModel):
     risk_score: float
     is_fraud: bool
     prediction: int
+    reason: Optional[str] = None
 
 @app.get("/metrics")
 def get_metrics():
@@ -80,10 +107,12 @@ def get_metrics():
 
 @app.post("/predict", response_model=PredictionOutput)
 def predict(txn: TransactionInput):
+    global model, rule_engine
+    
     if model is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
-    # Prepare input dataframe
+    # 1. Prepare input for Model
     input_data = {
         'account_age_days': [txn.account_age_days],
         'transaction_amount': [txn.transaction_amount],
@@ -94,17 +123,48 @@ def predict(txn: TransactionInput):
     }
     df = pd.DataFrame(input_data)
     
-    # Predict
+    # 2. ML Prediction
     try:
         risk_score = float(model.predict_proba(df)[:, 1][0])
-        prediction = int(model.predict(df)[0])
+        ml_prediction = int(model.predict(df)[0])
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
     
-    # Persist
+    # 3. Rule Engine
+    rule_result = rule_engine.check_rules(txn.dict())
+    
+    # 4. Combine Logic
+    # Fraud if ML says fraud OR Rule Engine says fraud
+    is_fraud = bool(ml_prediction == 1) or rule_result['triggered']
+    
+    final_reason = ""
+    if is_fraud:
+        reasons = []
+        if ml_prediction == 1:
+            reasons.append(f"ML Model Flagged (Score: {risk_score:.2f})")
+        if rule_result['triggered']:
+            reasons.append(f"Rules: {rule_result['reason']}")
+        final_reason = " | ".join(reasons)
+        
+        # 5. LLM Explanation (Optional)
+        # Only call if we have a real fraud case to explain
+        try:
+            llm_explanation = generate_explanation(
+                txn.dict(),
+                risk_score,
+                rule_result['rules_triggered'] if rule_result['triggered'] else ["High ML Risk Score"]
+            )
+            if llm_explanation:
+                 final_reason += f" | AI Explanation: {llm_explanation}"
+        except Exception as e:
+            print(f"LLM Error: {e}")
+
+    # 6. Persistence
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
+        
+        # Log prediction
         cursor.execute('''
             INSERT INTO model_predictions 
             (transaction_id, customer_id, features_json, risk_score, prediction, created_at)
@@ -114,18 +174,33 @@ def predict(txn: TransactionInput):
             txn.customer_id,
             json.dumps(input_data),
             risk_score,
-            prediction,
+            1 if is_fraud else 0, # Storing final decision
             datetime.now().isoformat()
         ))
+        
+        # Log Alert if Fraud
+        if is_fraud:
+            cursor.execute('''
+                INSERT INTO fraud_alerts
+                (transaction_id, customer_id, risk_score, reason, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                txn.transaction_id,
+                txn.customer_id,
+                risk_score,
+                final_reason,
+                datetime.now().isoformat()
+            ))
+            
         conn.commit()
         conn.close()
     except Exception as e:
         print(f"DB Error: {e}")
-        # We don't fail the request if DB write fails, just log it (or could fail depending on requirements)
-    
+
     return {
         "transaction_id": txn.transaction_id,
         "risk_score": risk_score,
-        "is_fraud": bool(prediction == 1),
-        "prediction": prediction
+        "is_fraud": is_fraud,
+        "prediction": 1 if is_fraud else 0,
+        "reason": final_reason if is_fraud else "Legit"
     }
