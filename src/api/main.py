@@ -6,8 +6,9 @@ import sqlite3
 from datetime import datetime
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 
 # Internal imports
 from src.utils.rule_engine import RuleEngine
@@ -81,6 +82,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Fraud Detection API", lifespan=lifespan)
 
+# Add CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for dev; restrict in prod
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 class TransactionInput(BaseModel):
     transaction_id: str
     customer_id: str
@@ -93,17 +103,47 @@ class TransactionInput(BaseModel):
 
 class PredictionOutput(BaseModel):
     transaction_id: str
+    prediction: str  # "Fraud" or "Legit"
     risk_score: float
-    is_fraud: bool
-    prediction: int
     reason: Optional[str] = None
+
+class AlertOutput(BaseModel):
+    transaction_id: str
+    customer_id: str
+    risk_score: float
+    reason: str
+    timestamp: str
 
 @app.get("/metrics")
 def get_metrics():
     if not os.path.exists(METRICS_PATH):
         raise HTTPException(status_code=404, detail="Metrics not found")
     with open(METRICS_PATH, 'r') as f:
-        return json.load(f)
+        data = json.load(f)
+        # Map keys to match the requested output contract
+        return {
+            "accuracy": data.get("accuracy"),
+            "precision": data.get("precision"),
+            "recall": data.get("recall"),
+            "f1_score": data.get("f1"),
+            "auc": data.get("roc_auc")
+        }
+
+@app.get("/alerts", response_model=List[AlertOutput])
+def get_alerts(limit: int = 10):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT transaction_id, customer_id, risk_score, reason, created_at as timestamp FROM fraud_alerts ORDER BY created_at DESC LIMIT ?", (limit,))
+        rows = cursor.fetchall()
+        
+        conn.close()
+        
+        return [dict(row) for row in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/predict", response_model=PredictionOutput)
 def predict(txn: TransactionInput):
@@ -199,8 +239,7 @@ def predict(txn: TransactionInput):
 
     return {
         "transaction_id": txn.transaction_id,
-        "risk_score": risk_score,
-        "is_fraud": is_fraud,
-        "prediction": 1 if is_fraud else 0,
+        "prediction": "Fraud" if is_fraud else "Legit",
+        "risk_score": float(risk_score),
         "reason": final_reason if is_fraud else "Legit"
     }

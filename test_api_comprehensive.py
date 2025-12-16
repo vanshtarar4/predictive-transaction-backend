@@ -32,10 +32,10 @@ def test_legit_transaction():
     print(f"Status: {response.status_code}")
     if response.status_code == 200:
         data = response.json()
-        print(f"Is Fraud: {data['is_fraud']}")
+        print(f"Prediction: {data['prediction']}")
         print(f"Risk Score: {data['risk_score']:.4f}")
         print(f"Reason: {data['reason']}")
-        if not data['is_fraud']:
+        if data['prediction'] == "Legit":
             print("✓ PASSED")
         else:
             print("✗ FAILED: Should be legit")
@@ -58,10 +58,10 @@ def test_fraud_odd_hour():
     print(f"Status: {response.status_code}")
     if response.status_code == 200:
         data = response.json()
-        print(f"Is Fraud: {data['is_fraud']}")
+        print(f"Prediction: {data['prediction']}")
         print(f"Risk Score: {data['risk_score']:.4f}")
         print(f"Reason: {data['reason']}")
-        if data['is_fraud'] and "Odd Hours" in data['reason']:
+        if data['prediction'] == "Fraud" and "Odd Hours" in data['reason']:
             print("✓ PASSED")
         else:
             print("✗ FAILED: Should detect odd hour fraud")
@@ -84,25 +84,41 @@ def test_fraud_risky_channel():
     print(f"Status: {response.status_code}")
     if response.status_code == 200:
         data = response.json()
-        print(f"Is Fraud: {data['is_fraud']}")
+        print(f"Prediction: {data['prediction']}")
         print(f"Risk Score: {data['risk_score']:.4f}")
         print(f"Reason: {data['reason']}")
-        if data['is_fraud'] and "Risky Channel" in data['reason']:
+        if data['prediction'] == "Fraud" and "Risky Channel" in data['reason']:
             print("✓ PASSED")
         else:
             print("✗ FAILED: Should detect risky channel fraud")
     else:
         print(f"✗ FAILED: {response.text}")
 
+def test_alerts_endpoint():
+    print("\n=== Testing GET /alerts ===")
+    response = requests.get(f"{BASE_URL}/alerts")
+    print(f"Status: {response.status_code}")
+    if response.status_code == 200:
+        data = response.json()
+        print(f"Alerts Count: {len(data)}")
+        if len(data) > 0:
+            print("Sample Alert:", data[0])
+            print("✓ PASSED")
+        else:
+            print("✓ PASSED (No alerts found, but endpoint works)")
+    else:
+        print(f"✗ FAILED: {response.text}")
+
 if __name__ == "__main__":
     print("=" * 50)
-    print("COMPREHENSIVE API TESTING")
+    print("COMPREHENSIVE API TESTING (BACKEND FINALIZATION)")
     print("=" * 50)
     
     test_metrics()
     test_legit_transaction()
     test_fraud_odd_hour()
     test_fraud_risky_channel()
+    test_alerts_endpoint()
     
     print("\n" + "=" * 50)
     print("TESTING COMPLETE")
