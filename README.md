@@ -28,19 +28,20 @@ It covers:
 
 ```text
 project_root/
-├── data/
-│   ├── raw/                  # Original dataset
-│   └── processed/            # Cleaned & processed data
-├── notebooks/                # EDA notebooks
-├── src/
-│   ├── preprocessing/        # Data cleaning & feature engineering scripts
-│   ├── utils/                # Helper functions
-│   └── api/                  # FastAPI application (main API entrypoint)
-├── docs/                     # Reports & documentation
-├── configs/                  # Project configuration files (e.g. .env templates)
-├── tests/                    # Unit tests
-├── requirements.txt          # Python dependencies
-└── README.md                 # Project overview
+├── backend/                  # Backend Application
+│   ├── data/                 # Database and processed data
+│   ├── models/               # ML models
+│   ├── src/                  # FastAPI source code
+│   │   ├── api/
+│   │   ├── utils/
+│   │   └── ...
+│   ├── tests/                # Backend tests
+│   └── requirements.txt      # Python dependencies
+├── frontend/                 # Frontend Application (React + Vite)
+│   ├── src/
+│   ├── public/
+│   └── package.json
+└── README.md                 # Project Overview
 ```
 
 > Note: The main FastAPI app is run from `src/api/main.py` (see run instructions below).
